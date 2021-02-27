@@ -73,7 +73,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     event ExchangeIssue(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
-        IERC20 indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
+        IERC20 indexed _inputToken,     // The address of the input asset(ERC20/ETH) used to issue the SetTokens
         uint256 _amountInputToken,      // The amount of input tokens used for issuance
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
@@ -81,9 +81,14 @@ contract ExchangeIssuance is ReentrancyGuard {
     event ExchangeRedeem(
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         ISetToken indexed _setToken,    // The redeemed SetToken
-        IERC20 indexed _outputToken,   // The addres of output asset(ERC20/ETH) received by the recipient
+        IERC20 indexed _outputToken,    // The addres of output asset(ERC20/ETH) received by the recipient
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
+    );
+
+    event Refund(
+        address indexed _recipient,     // The recipient address which redeemed the SetTokens
+        uint256 _refundAmount           // The amount of ETH redunder by this transaction
     );
     
     /* ============ Modifiers ============ */
@@ -264,6 +269,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             (payable(msg.sender)).sendValue(amountEthReturn);
         }
         
+        emit Refund(msg.sender, amountEthReturn);
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
     }
     
@@ -334,7 +340,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, address(_outputToken), amountEthOut);
             _outputToken.safeTransfer(msg.sender, outputAmount);
-           
+            
             emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToRedeem, outputAmount);
         }
     }

@@ -649,6 +649,22 @@ describe("ExchangeIssuance", async () => {
         );
       });
 
+      it("emits a Refund log", async () => {
+        const expectedRefund = await getIssueExactSetFromToken(
+          subjectSetToken,
+          subjectInputToken,
+          subjectMaxAmountInput,
+          subjectAmountSetToken,
+          subjectUniswapRouter,
+          weth.address
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "Refund").withArgs(
+          subjectCaller.address,
+          expectedRefund
+        );
+      });
+
       context("when max input amount is 0", async () => {
         beforeEach(async () => {
           subjectMaxAmountInput = ZERO;
