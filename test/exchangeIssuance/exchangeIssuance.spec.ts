@@ -27,8 +27,14 @@ const getIssueSetForExactETH = async (setToken: SetToken, ethInput: BigNumber, u
   for (let i = 0; i < components.length; i++) {
     const component = components[i];
     const unit = await setToken.getDefaultPositionRealUnit(component);
-    sumEth = sumEth.add((await uniswapRouter.getAmountsIn(unit, [weth, component]))[0]);
-    const amountEthForComponent = (await uniswapRouter.getAmountsIn(unit, [weth, component]))[0];
+    let amountEthForComponent = ether(0);
+    if (component === weth) {
+      sumEth = sumEth.add(unit);
+      amountEthForComponent = unit;
+    } else {
+      sumEth = sumEth.add((await uniswapRouter.getAmountsIn(unit, [weth, component]))[0]);
+      amountEthForComponent = (await uniswapRouter.getAmountsIn(unit, [weth, component]))[0];
+    }
     amountEthForComponents.push(amountEthForComponent);
   }
 
@@ -37,7 +43,10 @@ const getIssueSetForExactETH = async (setToken: SetToken, ethInput: BigNumber, u
     const component = components[i];
     const unit = await setToken.getDefaultPositionRealUnit(component);
     const scaledEth = amountEthForComponents[i].mul(ethInput).div(sumEth);
-    const amountComponentOut = (await uniswapRouter.getAmountsOut(scaledEth, [weth, component]))[1];
+
+    const amountComponentOut = component === weth ?
+      scaledEth :
+      (await uniswapRouter.getAmountsOut(scaledEth, [weth, component]))[1];
 
     const potentialSetTokenOut = amountComponentOut.mul(ether(1)).div(unit);
     if (potentialSetTokenOut.lt(expectedOutput)) {
@@ -60,7 +69,9 @@ const getIssueExactSetFromETH = async (setToken: SetToken, amountSet: BigNumber,
   let sumEth = BigNumber.from(0);
   for (let i = 0; i < components.length; i++) {
     const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-    const ethAmount = (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
+    const ethAmount = components[i] === weth ?
+      componentAmount :
+      (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
     sumEth = sumEth.add(ethAmount);
   }
   return sumEth;
@@ -114,6 +125,7 @@ describe("ExchangeIssuance", async () => {
 
   let deployer: DeployHelper;
   let setToken: SetToken;
+  let setTokenWithWeth: SetToken;
 
   let exchangeIssuance: ExchangeIssuance;
 
@@ -133,7 +145,14 @@ describe("ExchangeIssuance", async () => {
       [ether(0.5), BigNumber.from(10).pow(8)],
       [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
     );
-    setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+    await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+
+    setTokenWithWeth = await setV2Setup.createSetToken(
+      [setV2Setup.dai.address, setV2Setup.weth.address],
+      [ether(0.5), ether(0.5)],
+      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+    );
+    await setV2Setup.issuanceModule.initialize(setTokenWithWeth.address, ADDRESS_ZERO);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -504,6 +523,56 @@ describe("ExchangeIssuance", async () => {
           subjectAmountInput,
           expectedSetTokenAmount
         );
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+        });
+
+        it("should issue the correct amount of Set to the caller", async () => {
+          // calculate amount set to be received
+          const expectedOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            subjectUniswapRouter,
+            weth.address
+          );
+
+          // issue tokens
+          const initSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
+          await subject();
+          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
+
+          expect(expectedOutput).to.eq(finalSetBalance.sub(initSetBalance));
+        });
+
+        it("should use the correct amount of input token from the caller", async () => {
+          const initTokenBalance = await subjectInputToken.balanceOf(subjectCaller.address);
+          await subject();
+          const finalTokenBalance = await subjectInputToken.balanceOf(subjectCaller.address);
+
+          expect(subjectAmountInput).to.eq(initTokenBalance.sub(finalTokenBalance));
+        });
+
+        it("emits an ExchangeIssue log", async () => {
+          const expectedSetTokenAmount = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            subjectUniswapRouter,
+            weth.address
+          );
+
+          await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+            subjectCaller.address,
+            subjectSetToken.address,
+            subjectInputToken.address,
+            subjectAmountInput,
+            expectedSetTokenAmount
+          );
+        });
       });
 
       context("when input amount is 0", async () => {

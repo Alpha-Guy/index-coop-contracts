@@ -50,7 +50,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     /* ============ Enums ============ */
     
-    enum Exchange { Uniswap, Sushiswap }
+    enum Exchange { Uniswap, Sushiswap, Weth }
 
     /* ============ Constants ============= */
 
@@ -738,7 +738,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      */
     function _getMinTokenForExactToken(uint256 _amountOut, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
         if (_tokenA == _tokenB) {
-            return (_amountOut, Exchange(-1));
+            return (_amountOut, Exchange.Weth);
         }
         
         uint256 maxIn = PreciseUnitMath.maxUint256() ; 
@@ -778,7 +778,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      */
     function _getMaxTokenForExactToken(uint256 _amountIn, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
         if (_tokenA == _tokenB) {
-            return (_amountIn, Exchange(-1));
+            return (_amountIn, Exchange.Weth);
         }
         
         uint256 uniTokenOut = 0;
