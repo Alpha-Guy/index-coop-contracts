@@ -51,7 +51,7 @@ const getIssueSetForExactToken = async (setToken: SetToken, inputToken: string, 
   uniswapRouter: UniswapV2Router02, weth: string) => {
 
   // get eth amount that can be aquired with inputToken
-  const ethInput = (await uniswapRouter.getAmountsOut(inputAmount, [inputToken, weth]))[1];
+  const ethInput = inputToken !== weth ? (await uniswapRouter.getAmountsOut(inputAmount, [inputToken, weth]))[1] : inputAmount;
   return await getIssueSetForExactETH(setToken, ethInput, uniswapRouter, weth);
 };
 
@@ -66,7 +66,17 @@ const getIssueExactSetFromETH = async (setToken: SetToken, amountSet: BigNumber,
   return sumEth;
 };
 
-const getIssueExactSetFromToken = async (setToken: SetToken, inputToken: StandardTokenMock, inputAmount: BigNumber,
+const getIssueExactSetFromToken = async (setToken: SetToken, inputToken: StandardTokenMock | WETH9,
+  amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
+
+  const ethCost = await getIssueExactSetFromETH(setToken, amountSet, uniswapRouter, weth);
+  if (inputToken.address === weth) return ethCost;
+
+  const tokenCost = (await uniswapRouter.getAmountsIn(ethCost, [inputToken.address, weth]))[0];
+  return tokenCost;
+};
+
+const getIssueExactSetFromTokenRefund = async (setToken: SetToken, inputToken: StandardTokenMock, inputAmount: BigNumber,
   amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
 
   const ethCost = await getIssueExactSetFromETH(setToken, amountSet, uniswapRouter, weth);
@@ -87,10 +97,12 @@ const getRedeemExactSetForETH = async (setToken: SetToken, amountSet: BigNumber,
   return sumEth;
 };
 
-const getRedeemExactSetForToken = async (setToken: SetToken, outputToken: StandardTokenMock,
+const getRedeemExactSetForToken = async (setToken: SetToken, outputToken: StandardTokenMock | WETH9,
   amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
 
   const ethOut = await getRedeemExactSetForETH(setToken, amountSet, uniswapRouter, weth);
+  if (outputToken.address === weth) return ethOut;
+
   const tokenOut = (await uniswapRouter.getAmountsOut(ethOut, [weth, outputToken.address]))[1];
   return tokenOut;
 };
@@ -623,7 +635,7 @@ describe("ExchangeIssuance", async () => {
       });
 
       it("should return the correct amount of ether to the caller", async () => {
-        const expectedRefund = await getIssueExactSetFromToken(
+        const expectedRefund = await getIssueExactSetFromTokenRefund(
           subjectSetToken,
           subjectInputToken,
           subjectMaxAmountInput,
@@ -650,7 +662,7 @@ describe("ExchangeIssuance", async () => {
       });
 
       it("emits a Refund log", async () => {
-        const expectedRefund = await getIssueExactSetFromToken(
+        const expectedRefund = await getIssueExactSetFromTokenRefund(
           subjectSetToken,
           subjectInputToken,
           subjectMaxAmountInput,
@@ -915,6 +927,178 @@ describe("ExchangeIssuance", async () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+    });
+
+    describe("#getEstimatedIssueSetAmount", async () => {
+      let subjectSetToken: SetToken;
+      let subjectInputToken: StandardTokenMock | WETH9;
+      let subjectAmountInput: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectAmountInput = BigNumber.from(1000 * 10 ** 6);
+      });
+
+      async function subject(): Promise<BigNumber> {
+        return await exchangeIssuance.getEstimatedIssueSetAmount(
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountInput
+        );
+      }
+
+      context("when input token is weth", async () => {
+        beforeEach(async () => {
+          subjectInputToken = weth;
+        });
+
+        it("should return the correct amount of output set", async () => {
+
+          const expectedSetOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            subjectUniswapRouter,
+            weth.address
+          );
+          const actualSetOutput = await subject();
+
+          expect(expectedSetOutput).to.eq(actualSetOutput);
+        });
+      });
+
+      context("when input token is an erc20", async () => {
+        beforeEach(async () => {
+          subjectInputToken = usdc;
+        });
+
+        it("should return the correct amount of output set", async () => {
+          const expectedSetOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            subjectUniswapRouter,
+            weth.address
+          );
+          const actualSetOutput = await subject();
+
+          expect(expectedSetOutput).to.eq(actualSetOutput);
+        });
+      });
+    });
+
+    describe("#getAmountInToIssueExactSet", async () => {
+      let subjectSetToken: SetToken;
+      let subjectInputToken: StandardTokenMock | WETH9;
+      let subjectAmountSetToken: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(1000);
+      });
+
+      async function subject(): Promise<BigNumber> {
+        return await exchangeIssuance.getAmountInToIssueExactSet(
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountSetToken
+        );
+      }
+
+      context("when input token is an erc20", async () => {
+        beforeEach(async () => {
+          subjectInputToken = usdc;
+        });
+
+        it("should return the correct amount of input tokens", async () => {
+          const expectedInputAmount = await getIssueExactSetFromToken(
+            subjectSetToken,
+            subjectInputToken,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+          const actualInputAmount = await subject();
+
+          expect(expectedInputAmount).to.eq(actualInputAmount);
+        });
+      });
+
+      context("when input token is weth", async () => {
+        beforeEach(async () => {
+          subjectInputToken = weth;
+        });
+
+        it("should return the correct amount of input tokens", async () => {
+          const expectedInputAmount = await getIssueExactSetFromToken(
+            subjectSetToken,
+            subjectInputToken,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+          const actualInputAmount = await subject();
+
+          expect(expectedInputAmount).to.eq(actualInputAmount);
+        });
+      });
+    });
+
+    describe("#getAmountOutOnRedeemSet", async () => {
+      let subjectSetToken: SetToken;
+      let subjectOutputToken: StandardTokenMock | WETH9;
+      let subjectAmountSetToken: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(100);
+      });
+
+      async function subject(): Promise<BigNumber> {
+        return await exchangeIssuance.getAmountOutOnRedeemSet(
+          subjectSetToken.address,
+          subjectOutputToken.address,
+          subjectAmountSetToken
+        );
+      }
+
+      context("when output is an erc20", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = usdc;
+        });
+
+        it("should return the correct amount of output tokens", async () => {
+          const expectedOutputAmount = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+          const actualOutputAmount = await subject();
+
+          expect(expectedOutputAmount).to.eq(actualOutputAmount);
+        });
+      });
+
+      context("when output is weth", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = weth;
+        });
+
+        it("should return the correct amount of output tokens", async () => {
+          const expectedOutputAmount = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+          const actualOutputAmount = await subject();
+
+          expect(expectedOutputAmount).to.eq(actualOutputAmount);
         });
       });
     });
