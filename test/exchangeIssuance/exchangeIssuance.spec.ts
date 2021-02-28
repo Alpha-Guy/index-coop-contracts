@@ -465,6 +465,24 @@ describe("ExchangeIssuance", async () => {
       });
     });
 
+    describe("#receive", async () => {
+      let subjectCaller: Account;
+      let subjectAmount: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectAmount = ether(10);
+      });
+
+      async function subject(): Promise<String> {
+        return subjectCaller.wallet.call({ to: exchangeIssuance.address, value: subjectAmount });
+      }
+
+      it("should revert when receiving ether not from the WETH contract", async () => {
+        await expect(subject()).to.be.revertedWith("ExchangeIssuance: Direct deposits not allowed");
+      });
+    });
+
     describe("#issueSetForExactToken", async () => {
       let subjectCaller: Account;
       let subjectSetToken: SetToken;
