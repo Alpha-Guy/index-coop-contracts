@@ -50,7 +50,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     /* ============ Enums ============ */
     
-    enum Exchange { Uniswap, Sushiswap, Weth }
+    enum Exchange { Uniswap, Sushiswap, None }
 
     /* ============ Constants ============= */
 
@@ -549,7 +549,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             // Get max amount of WETH for the available amount of SetToken component
             (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
-            if (exchange == Exchange.Weth) {
+            if (exchange == Exchange.None) {
                 sumEth = sumEth.add(tokenBalance);
             } else {
                 sumEth = sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
@@ -743,7 +743,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      */
     function _getMinTokenForExactToken(uint256 _amountOut, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
         if (_tokenA == _tokenB) {
-            return (_amountOut, Exchange.Weth);
+            return (_amountOut, Exchange.None);
         }
         
         uint256 maxIn = PreciseUnitMath.maxUint256() ; 
@@ -783,7 +783,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      */
     function _getMaxTokenForExactToken(uint256 _amountIn, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
         if (_tokenA == _tokenB) {
-            return (_amountIn, Exchange.Weth);
+            return (_amountIn, Exchange.None);
         }
         
         uint256 uniTokenOut = 0;
