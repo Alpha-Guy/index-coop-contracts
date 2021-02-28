@@ -175,7 +175,6 @@ describe("ExchangeIssuance", async () => {
       let wbtcAddress: Address;
       let daiAddress: Address;
 
-      // TODO: should we instead port SystemFixtrue and use tokens from it ?
       wethAddress = setV2Setup.weth.address;
       wbtcAddress = setV2Setup.wbtc.address;
       daiAddress = setV2Setup.dai.address;
@@ -258,16 +257,27 @@ describe("ExchangeIssuance", async () => {
     let wbtc: StandardTokenMock;
     let dai: StandardTokenMock;
     let usdc: StandardTokenMock;
+    let illiquidToken: StandardTokenMock;
+    let setTokenIlliquid: SetToken;
 
     beforeEach(async () => {
       let uniswapSetup: UniswapFixture;
       let sushiswapSetup: UniswapFixture;
 
-      // TODO: should we instead port SystemFixtrue and use tokens from it ?
       weth = setV2Setup.weth;
       wbtc = setV2Setup.wbtc;
       dai = setV2Setup.dai;
-      usdc = await deployer.setV2.deployTokenMock(user.address, 1000000 * 10 ** 6, 6, "USD Coin", "USDC");
+      usdc = setV2Setup.usdc;
+      illiquidToken = await deployer.setV2.deployTokenMock(owner.address, ether(1000000), 18, "illiquid token", "RUGGED");
+
+      usdc.transfer(user.address, 10000 * 10 ** 6);
+
+      setTokenIlliquid = await setV2Setup.createSetToken(
+        [setV2Setup.dai.address, illiquidToken.address],
+        [ether(0.5), ether(0.5)],
+        [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+      );
+      await setV2Setup.issuanceModule.initialize(setTokenIlliquid.address, ADDRESS_ZERO);
 
       uniswapSetup = await getUniswapFixture(owner.address);
       await uniswapSetup.initialize(owner, weth.address, wbtc.address, dai.address);
@@ -308,8 +318,8 @@ describe("ExchangeIssuance", async () => {
         { value: ether(10), gasLimit: 9000000 }
       );
 
-      await usdc.connect(user.wallet).approve(subjectUniswapRouter.address, MAX_INT_256);
-      await subjectUniswapRouter.connect(user.wallet).addLiquidityETH(
+      await usdc.connect(owner.wallet).approve(subjectUniswapRouter.address, MAX_INT_256);
+      await subjectUniswapRouter.connect(owner.wallet).addLiquidityETH(
         usdc.address,
         100000 * 10 ** 6,
         MAX_UINT_256,
@@ -586,6 +596,16 @@ describe("ExchangeIssuance", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
         });
       });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
     });
 
     describe("#issueSetForExactETH", async () => {
@@ -658,6 +678,16 @@ describe("ExchangeIssuance", async () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         });
       });
     });
@@ -833,6 +863,16 @@ describe("ExchangeIssuance", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
         });
       });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
     });
 
     describe("#issueExactSetFromETH", async () => {
@@ -903,6 +943,16 @@ describe("ExchangeIssuance", async () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         });
       });
     });
@@ -981,6 +1031,17 @@ describe("ExchangeIssuance", async () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+          await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         });
       });
     });
@@ -1114,6 +1175,17 @@ describe("ExchangeIssuance", async () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+          await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         });
       });
     });
