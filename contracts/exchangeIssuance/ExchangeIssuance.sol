@@ -327,7 +327,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         require(_amountSetToRedeem > 0, "ExchangeIssuance: INVALID INPUTS");
         
-        uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        uint256 amountEthOut = IERC20(WETH).balanceOf(address(this));
         
         if (address(_outputToken) == WETH) {
             require(amountEthOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
@@ -365,7 +366,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         require(_amountSetToRedeem > 0, "ExchangeIssuance: INVALID INPUTS");
         
-        uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        uint256 amountEthOut = IERC20(WETH).balanceOf(address(this));
         
         require(amountEthOut > _minETHReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
         
@@ -548,7 +550,11 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             // Get max amount of WETH for the available amount of SetToken component
             (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
-            sumEth = sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
+            if (exchange == Exchange.Weth) {
+                sumEth = sumEth.add(tokenBalance);
+            } else {
+                sumEth = sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
+            }
         }
         return sumEth;
     }

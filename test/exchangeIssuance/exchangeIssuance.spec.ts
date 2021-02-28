@@ -102,7 +102,9 @@ const getRedeemExactSetForETH = async (setToken: SetToken, amountSet: BigNumber,
   let sumEth = BigNumber.from(0);
   for (let i = 0; i < components.length; i++) {
     const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-    const ethAmount = (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
+    const ethAmount = components[i] === weth ?
+      componentAmount :
+      (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
     sumEth = sumEth.add(ethAmount);
   }
   return sumEth;
@@ -676,7 +678,7 @@ describe("ExchangeIssuance", async () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        await exchangeIssuance.approveSetToken(setToken.address, { gasPrice: 0 });
+        await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
         await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
         return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromToken(
           subjectSetToken.address,
@@ -744,6 +746,72 @@ describe("ExchangeIssuance", async () => {
           subjectCaller.address,
           expectedRefund
         );
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+          subjectAmountSetToken = ether(0.00001);
+        });
+
+        it("should issue the correct amount of Set to the caller", async () => {
+          const initSetAmount = await subjectSetToken.balanceOf(subjectCaller.address);
+          await subject();
+          const finalSetAmount = await subjectSetToken.balanceOf(subjectCaller.address);
+
+          expect(subjectAmountSetToken).to.eq(finalSetAmount.sub(initSetAmount));
+        });
+
+        it("should use the correct amount of input token from the caller", async () => {
+          const initInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+          await subject();
+          const finalInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+
+          expect(subjectMaxAmountInput).to.eq(initInputToken.sub(finalInputToken));
+        });
+
+        it("should return the correct amount of ether to the caller", async () => {
+          const expectedRefund = await getIssueExactSetFromTokenRefund(
+            subjectSetToken,
+            subjectInputToken,
+            subjectMaxAmountInput,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+
+          const initEthBalance = await subjectCaller.wallet.getBalance();
+          await subject();
+          const finalEthBalance = await subjectCaller.wallet.getBalance();
+
+          expect(expectedRefund).to.eq(finalEthBalance.sub(initEthBalance));
+        });
+
+        it("emits an ExchangeIssue log", async () => {
+          await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+            subjectCaller.address,
+            subjectSetToken.address,
+            subjectInputToken.address,
+            subjectMaxAmountInput,
+            subjectAmountSetToken
+          );
+        });
+
+        it("emits a Refund log", async () => {
+          const expectedRefund = await getIssueExactSetFromTokenRefund(
+            subjectSetToken,
+            subjectInputToken,
+            subjectMaxAmountInput,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+
+          await expect(subject()).to.emit(exchangeIssuance, "Refund").withArgs(
+            subjectCaller.address,
+            expectedRefund
+          );
+        });
       });
 
       context("when max input amount is 0", async () => {
@@ -987,6 +1055,56 @@ describe("ExchangeIssuance", async () => {
           subjectAmountSetToken,
           expectedTokensReturned
         );
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+          subjectAmountSetToken = ether(1);
+          await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+        });
+
+        it("should redeem the correct amount of a set to the caller", async () => {
+          const initSetAmount = await subjectSetToken.balanceOf(subjectCaller.address);
+          await subject();
+          const finalSetAmount = await subjectSetToken.balanceOf(subjectCaller.address);
+
+          expect(subjectAmountSetToken).to.eq(initSetAmount.sub(finalSetAmount));
+        });
+
+        it("should return the correct amount of output token to the caller", async () => {
+          const expectedTokensReturned = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+
+          const initTokenBalance = await subjectOutputToken.balanceOf(subjectCaller.address);
+          await subject();
+          const finalTokenBalance = await subjectOutputToken.balanceOf(subjectCaller.address);
+
+          expect(expectedTokensReturned).to.eq(finalTokenBalance.sub(initTokenBalance));
+        });
+
+        it("emits an ExchangeRedeem log", async () => {
+          const expectedTokensReturned = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            subjectUniswapRouter,
+            weth.address
+          );
+
+          await expect(subject()).to.emit(exchangeIssuance, "ExchangeRedeem").withArgs(
+            subjectCaller.address,
+            subjectSetToken.address,
+            subjectOutputToken.address,
+            subjectAmountSetToken,
+            expectedTokensReturned
+          );
+        });
       });
 
       context("when amount Set is 0", async () => {
