@@ -419,6 +419,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         for (uint256 i = 0; i < components.length; i++) {
             uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);
             
+            // if exchange[i] is Exchange.None then amountTokenOut remains equal to scaledAmountEth
             uint256 amountTokenOut = scaledAmountEth;
             if (exchanges[i] == Exchange.Uniswap) {
                 (uint256 reserveIn, uint256 reserveOut) = UniswapV2Library.getReserves(uniFactory, WETH, components[i]);
@@ -549,11 +550,9 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             // Get max amount of WETH for the available amount of SetToken component
             (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
-            if (exchange == Exchange.None) {
-                sumEth = sumEth.add(tokenBalance);
-            } else {
-                sumEth = sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
-            }
+            sumEth = exchange == Exchange.None ? 
+                sumEth.add(tokenBalance) : 
+                sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
         }
         return sumEth;
     }

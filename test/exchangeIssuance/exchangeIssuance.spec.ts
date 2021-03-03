@@ -17,108 +17,19 @@ import {
 import { SetFixture } from "@utils/fixtures";
 import { UniswapFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
+import {
+  getAllowances,
+  getIssueExactSetFromToken,
+  getIssueSetForExactToken,
+  getRedeemExactSetForToken,
+  getIssueExactSetFromETH,
+  getIssueExactSetFromTokenRefund,
+  getIssueSetForExactETH,
+  getRedeemExactSetForETH,
+} from "@utils/common/exchangeIssuanceUtils";
 
 const expect = getWaffleExpect();
 
-const getIssueSetForExactETH = async (setToken: SetToken, ethInput: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
-  let sumEth = BigNumber.from(0);
-  const amountEthForComponents = [];
-  const components = await setToken.getComponents();
-  for (let i = 0; i < components.length; i++) {
-    const component = components[i];
-    const unit = await setToken.getDefaultPositionRealUnit(component);
-    let amountEthForComponent = ether(0);
-    if (component === weth) {
-      sumEth = sumEth.add(unit);
-      amountEthForComponent = unit;
-    } else {
-      sumEth = sumEth.add((await uniswapRouter.getAmountsIn(unit, [weth, component]))[0]);
-      amountEthForComponent = (await uniswapRouter.getAmountsIn(unit, [weth, component]))[0];
-    }
-    amountEthForComponents.push(amountEthForComponent);
-  }
-
-  let expectedOutput: BigNumber = MAX_UINT_256;
-  for (let i = 0; i < components.length; i++) {
-    const component = components[i];
-    const unit = await setToken.getDefaultPositionRealUnit(component);
-    const scaledEth = amountEthForComponents[i].mul(ethInput).div(sumEth);
-
-    const amountComponentOut = component === weth ?
-      scaledEth :
-      (await uniswapRouter.getAmountsOut(scaledEth, [weth, component]))[1];
-
-    const potentialSetTokenOut = amountComponentOut.mul(ether(1)).div(unit);
-    if (potentialSetTokenOut.lt(expectedOutput)) {
-      expectedOutput = potentialSetTokenOut;
-    }
-  }
-  return expectedOutput;
-};
-
-const getIssueSetForExactToken = async (setToken: SetToken, inputToken: string, inputAmount: BigNumber,
-  uniswapRouter: UniswapV2Router02, weth: string) => {
-
-  // get eth amount that can be aquired with inputToken
-  const ethInput = inputToken !== weth ? (await uniswapRouter.getAmountsOut(inputAmount, [inputToken, weth]))[1] : inputAmount;
-  return await getIssueSetForExactETH(setToken, ethInput, uniswapRouter, weth);
-};
-
-const getIssueExactSetFromETH = async (setToken: SetToken, amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
-  const components = await setToken.getComponents();
-  let sumEth = BigNumber.from(0);
-  for (let i = 0; i < components.length; i++) {
-    const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-    const ethAmount = components[i] === weth ?
-      componentAmount :
-      (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
-    sumEth = sumEth.add(ethAmount);
-  }
-  return sumEth;
-};
-
-const getIssueExactSetFromToken = async (setToken: SetToken, inputToken: StandardTokenMock | WETH9,
-  amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
-
-  const ethCost = await getIssueExactSetFromETH(setToken, amountSet, uniswapRouter, weth);
-  if (inputToken.address === weth) return ethCost;
-
-  const tokenCost = (await uniswapRouter.getAmountsIn(ethCost, [inputToken.address, weth]))[0];
-  return tokenCost;
-};
-
-const getIssueExactSetFromTokenRefund = async (setToken: SetToken, inputToken: StandardTokenMock, inputAmount: BigNumber,
-  amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
-
-  const ethCost = await getIssueExactSetFromETH(setToken, amountSet, uniswapRouter, weth);
-  const inputEthValue = (await uniswapRouter.getAmountsOut(inputAmount, [inputToken.address, weth]))[1];
-  const refundAmount = inputEthValue.sub(ethCost);
-
-  return refundAmount;
-};
-
-const getRedeemExactSetForETH = async (setToken: SetToken, amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
-  const components = await setToken.getComponents();
-  let sumEth = BigNumber.from(0);
-  for (let i = 0; i < components.length; i++) {
-    const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-    const ethAmount = components[i] === weth ?
-      componentAmount :
-      (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
-    sumEth = sumEth.add(ethAmount);
-  }
-  return sumEth;
-};
-
-const getRedeemExactSetForToken = async (setToken: SetToken, outputToken: StandardTokenMock | WETH9,
-  amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
-
-  const ethOut = await getRedeemExactSetForETH(setToken, amountSet, uniswapRouter, weth);
-  if (outputToken.address === weth) return ethOut;
-
-  const tokenOut = (await uniswapRouter.getAmountsOut(ethOut, [weth, outputToken.address]))[1];
-  return tokenOut;
-};
 
 describe("ExchangeIssuance", async () => {
   let owner: Account;
@@ -179,10 +90,10 @@ describe("ExchangeIssuance", async () => {
       wbtcAddress = setV2Setup.wbtc.address;
       daiAddress = setV2Setup.dai.address;
 
-      uniswapSetup = await getUniswapFixture(owner.address);
+      uniswapSetup = getUniswapFixture(owner.address);
       await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
-      sushiswapSetup = await getUniswapFixture(owner.address);
+      sushiswapSetup = getUniswapFixture(owner.address);
       await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
       subjectWethAddress = wethAddress;
@@ -352,19 +263,17 @@ describe("ExchangeIssuance", async () => {
       }
 
       it("should update the approvals correctly", async () => {
-        const initUniswapDaiAllownace = await subjectTokenToApprove.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const initSushiswapDaiAllownace = await subjectTokenToApprove.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const initIssuanceModuleDaiAllownace = await subjectTokenToApprove.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
+        const spenders = [subjectUniswapRouter.address, subjectSushiswapRouter.address, subjectBasicIssuanceModuleAddress];
+        const tokens = [subjectTokenToApprove];
+        const initAllowances = await getAllowances(tokens, exchangeIssuance.address, spenders);
 
         await subject();
 
-        const finalUniswapDaiAllownace = await subjectTokenToApprove.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const finalSushiswapDaiAllownace = await subjectTokenToApprove.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const finalIssuanceModuleDaiAllownace = await subjectTokenToApprove.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
+        const finalAllowances = await getAllowances(tokens, exchangeIssuance.address, spenders);
 
-        expect(finalUniswapDaiAllownace.sub(initUniswapDaiAllownace)).eq(MAX_UINT_96);
-        expect(finalSushiswapDaiAllownace.sub(initSushiswapDaiAllownace)).eq(MAX_UINT_96);
-        expect(finalIssuanceModuleDaiAllownace.sub(initIssuanceModuleDaiAllownace)).eq(MAX_UINT_96);
+        for (let i = 0; i < finalAllowances.length; i++) {
+          expect(finalAllowances[i].sub(initAllowances[i])).to.eq(MAX_UINT_96);
+        }
       });
     });
 
@@ -380,33 +289,16 @@ describe("ExchangeIssuance", async () => {
       }
 
       it("should update the approvals correctly", async () => {
-        const token1 = subjectTokensToApprove[0];
-        const initUniswapToken1Allownace = await token1.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const initSushiswapToken1Allownace = await token1.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const initIssuanceModuleToken1Allownace = await token1.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
-
-        const token2 = subjectTokensToApprove[1];
-        const initUniswapToken2Allownace = await token2.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const initSushiswapToken2Allownace = await token2.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const initIssuanceModuleToken2Allownace = await token2.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
+        const spenders = [subjectUniswapRouter.address, subjectSushiswapRouter.address, subjectBasicIssuanceModuleAddress];
+        const initAllowances = await getAllowances(subjectTokensToApprove, exchangeIssuance.address, spenders);
 
         await subject();
 
-        const finalUniswapToken1Allownace = await token1.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const finalSushiswapToken1Allownace = await token1.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const finalIssuanceModuleToken1Allownace = await token1.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
+        const finalAllowances = await getAllowances(subjectTokensToApprove, exchangeIssuance.address, spenders);
 
-        const finalUniswapToken2Allownace = await token2.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const finalSushiswapToken2Allownace = await token2.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const finalIssuanceModuleToken2Allownace = await token2.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
-
-        expect(finalUniswapToken1Allownace.sub(initUniswapToken1Allownace)).eq(MAX_UINT_96);
-        expect(finalSushiswapToken1Allownace.sub(initSushiswapToken1Allownace)).eq(MAX_UINT_96);
-        expect(finalIssuanceModuleToken1Allownace.sub(initIssuanceModuleToken1Allownace)).eq(MAX_UINT_96);
-
-        expect(finalUniswapToken2Allownace.sub(initUniswapToken2Allownace)).eq(MAX_UINT_96);
-        expect(finalSushiswapToken2Allownace.sub(initSushiswapToken2Allownace)).eq(MAX_UINT_96);
-        expect(finalIssuanceModuleToken2Allownace.sub(initIssuanceModuleToken2Allownace)).eq(MAX_UINT_96);
+        for (let i = 0; i < finalAllowances.length; i++) {
+          expect(finalAllowances[i].sub(initAllowances[i])).to.eq(MAX_UINT_96);
+        }
       });
 
       context("when the set contains an external position", async () => {
@@ -437,31 +329,17 @@ describe("ExchangeIssuance", async () => {
       }
 
       it("should update the approvals correctly", async () => {
-        const initUniswapToken1Allownace = await subjectToken1.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const initSushiswapToken1Allownace = await subjectToken1.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const initIssuanceModuleToken1Allownace = await subjectToken1.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
-
-        const initUniswapToken2Allownace = await subjectToken2.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const initSushiswapToken2Allownace = await subjectToken2.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const initIssuanceModuleToken2Allownace = await subjectToken2.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
+        const tokens = [subjectToken1, subjectToken2];
+        const spenders = [subjectUniswapRouter.address, subjectSushiswapRouter.address, subjectBasicIssuanceModuleAddress];
+        const initAllowances = await getAllowances(tokens, exchangeIssuance.address, spenders);
 
         await subject();
 
-        const finalUniswapToken1Allownace = await subjectToken1.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const finalSushiswapToken1Allownace = await subjectToken1.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const finalIssuanceModuleToken1Allownace = await subjectToken1.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
+        const finalAllowances = await getAllowances(tokens, exchangeIssuance.address, spenders);
 
-        const finalUniswapToken2Allownace = await subjectToken2.allowance(exchangeIssuance.address, subjectUniswapRouter.address);
-        const finalSushiswapToken2Allownace = await subjectToken2.allowance(exchangeIssuance.address, subjectSushiswapRouter.address);
-        const finalIssuanceModuleToken2Allownace = await subjectToken2.allowance(exchangeIssuance.address, subjectBasicIssuanceModuleAddress);
-
-        expect(finalUniswapToken1Allownace.sub(initUniswapToken1Allownace)).eq(MAX_UINT_96);
-        expect(finalSushiswapToken1Allownace.sub(initSushiswapToken1Allownace)).eq(MAX_UINT_96);
-        expect(finalIssuanceModuleToken1Allownace.sub(initIssuanceModuleToken1Allownace)).eq(MAX_UINT_96);
-
-        expect(finalUniswapToken2Allownace.sub(initUniswapToken2Allownace)).eq(MAX_UINT_96);
-        expect(finalSushiswapToken2Allownace.sub(initSushiswapToken2Allownace)).eq(MAX_UINT_96);
-        expect(finalIssuanceModuleToken2Allownace.sub(initIssuanceModuleToken2Allownace)).eq(MAX_UINT_96);
+        for (let i = 0; i < finalAllowances.length; i++) {
+          expect(finalAllowances[i].sub(initAllowances[i])).to.eq(MAX_UINT_96);
+        }
       });
     });
 
@@ -670,7 +548,7 @@ describe("ExchangeIssuance", async () => {
         await subject();
         const finalEthBalance = await user.wallet.getBalance();
 
-        expect(subjectAmountETHInput).to.eq((await initEthBalance).sub(finalEthBalance));
+        expect(subjectAmountETHInput).to.eq(initEthBalance.sub(finalEthBalance));
       });
 
       it("emits an ExchangeIssue log", async () => {
