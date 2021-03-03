@@ -36,9 +36,9 @@ export const getIssueSetForExactETH = async (setToken: SetToken, ethInput: BigNu
         const unit = await setToken.getDefaultPositionRealUnit(component);
         const scaledEth = amountEthForComponents[i].mul(ethInput).div(sumEth);
 
-        const amountComponentOut = component === weth ?
-            scaledEth :
-            (await uniswapRouter.getAmountsOut(scaledEth, [weth, component]))[1];
+        const amountComponentOut = component === weth
+            ? scaledEth
+            : (await uniswapRouter.getAmountsOut(scaledEth, [weth, component]))[1];
 
         const potentialSetTokenOut = amountComponentOut.mul(ether(1)).div(unit);
         if (potentialSetTokenOut.lt(expectedOutput)) {
@@ -61,9 +61,9 @@ export const getIssueExactSetFromETH = async (setToken: SetToken, amountSet: Big
     let sumEth = BigNumber.from(0);
     for (let i = 0; i < components.length; i++) {
         const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-        const ethAmount = components[i] === weth ?
-            componentAmount :
-            (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
+        const ethAmount = components[i] === weth
+            ? componentAmount
+            : (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
         sumEth = sumEth.add(ethAmount);
     }
     return sumEth;
@@ -94,9 +94,9 @@ export const getRedeemExactSetForETH = async (setToken: SetToken, amountSet: Big
     let sumEth = BigNumber.from(0);
     for (let i = 0; i < components.length; i++) {
         const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-        const ethAmount = components[i] === weth ?
-            componentAmount :
-            (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
+        const ethAmount = components[i] === weth
+            ? componentAmount
+            : (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
         sumEth = sumEth.add(ethAmount);
     }
     return sumEth;

@@ -786,6 +786,16 @@ describe("ExchangeIssuance", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         });
       });
+
+      context("when there is not enough liquidity to issue required amount", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ether(10 ** 10);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
     });
 
     describe("#issueExactSetFromETH", async () => {
@@ -862,6 +872,16 @@ describe("ExchangeIssuance", async () => {
       context("when the set token has an illiquid component", async () => {
         beforeEach(async () => {
           subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+
+      context("when there is not enough liquidity to issue required amount", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ether(10 ** 10);
         });
 
         it("should revert", async () => {

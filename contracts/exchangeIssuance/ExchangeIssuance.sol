@@ -550,9 +550,9 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             // Get max amount of WETH for the available amount of SetToken component
             (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
-            sumEth = exchange == Exchange.None ? 
-                sumEth.add(tokenBalance) : 
-                sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
+            sumEth = exchange == Exchange.None
+                ? sumEth.add(tokenBalance) 
+                : sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
         }
         return sumEth;
     }
