@@ -136,9 +136,9 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _token    Address of the token which needs approval
      */
     function approveToken(IERC20 _token) public {
-        _safeApprove(_token, address(uniRouter));
-        _safeApprove(_token, address(sushiRouter));
-        _safeApprove(_token, address(basicIssuanceModule));
+        _safeApprove(_token, address(uniRouter), MAX_UINT96);
+        _safeApprove(_token, address(sushiRouter), MAX_UINT96);
+        _safeApprove(_token, address(basicIssuanceModule), MAX_UINT96);
     }
 
     /* ============ External Functions ============ */
@@ -513,14 +513,14 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /**
      * Sets a max aproval limit for an ERC20 token, provided the current allowance 
-     * is less than 1/2 MAX_UINT96. 
+     * is less than the required allownce. 
      * 
      * @param _token    Token to approve
      * @param _spender  Spender address to approve
      */
-    function _safeApprove(IERC20 _token, address _spender) internal {
+    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
         uint256 allowance = _token.allowance(address(this), _spender);
-        if (allowance < MAX_UINT96 / 2) {
+        if (allowance < _requiredAllowance) {
             _token.safeIncreaseAllowance(_spender, MAX_UINT96 - allowance);
         }
     }
@@ -675,7 +675,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     function _swapTokenForWETH(IERC20 _token, uint256 _amount) internal returns (uint256) {
         (, Exchange exchange) = _getMaxTokenForExactToken(_amount, address(_token), WETH);
         IUniswapV2Router02 router = _getRouter(exchange);
-        _safeApprove(_token, address(router));
+        _safeApprove(_token, address(router), _amount);
         return _swapExactTokensForTokens(exchange, address(_token), WETH, _amount);
     }
     
