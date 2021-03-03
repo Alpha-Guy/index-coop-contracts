@@ -7,7 +7,7 @@ import { StandardTokenMock, UniswapV2Router02, WETH9 } from "@utils/contracts/in
 export const getAllowances = async (tokens: StandardTokenMock[], owner: string, spenders: string[]) => {
     const allowances: BigNumber[] = [];
     tokens.forEach(async token => {
-      allowances.push(...await Promise.all(spenders.map(async address => await token.allowance(owner, address))));
+        allowances.push(...await Promise.all(spenders.map(async address => await token.allowance(owner, address))));
     });
     return allowances;
 };
@@ -54,17 +54,17 @@ export const getIssueSetForExactToken = async (setToken: SetToken, inputToken: s
     // get eth amount that can be aquired with inputToken
     const ethInput = inputToken !== weth ? (await uniswapRouter.getAmountsOut(inputAmount, [inputToken, weth]))[1] : inputAmount;
     return await getIssueSetForExactETH(setToken, ethInput, uniswapRouter, weth);
-  };
+};
 
 export const getIssueExactSetFromETH = async (setToken: SetToken, amountSet: BigNumber, uniswapRouter: UniswapV2Router02, weth: string) => {
     const components = await setToken.getComponents();
     let sumEth = BigNumber.from(0);
     for (let i = 0; i < components.length; i++) {
-      const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-      const ethAmount = components[i] === weth ?
-        componentAmount :
-        (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
-      sumEth = sumEth.add(ethAmount);
+        const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
+        const ethAmount = components[i] === weth ?
+            componentAmount :
+            (await uniswapRouter.getAmountsIn(componentAmount, [weth, components[i]]))[0];
+        sumEth = sumEth.add(ethAmount);
     }
     return sumEth;
 };
@@ -93,11 +93,11 @@ export const getRedeemExactSetForETH = async (setToken: SetToken, amountSet: Big
     const components = await setToken.getComponents();
     let sumEth = BigNumber.from(0);
     for (let i = 0; i < components.length; i++) {
-      const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
-      const ethAmount = components[i] === weth ?
-        componentAmount :
-        (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
-      sumEth = sumEth.add(ethAmount);
+        const componentAmount = amountSet.mul(await setToken.getDefaultPositionRealUnit(components[i])).div(ether(1));
+        const ethAmount = components[i] === weth ?
+            componentAmount :
+            (await uniswapRouter.getAmountsOut(componentAmount, [components[i], weth]))[1];
+        sumEth = sumEth.add(ethAmount);
     }
     return sumEth;
 };

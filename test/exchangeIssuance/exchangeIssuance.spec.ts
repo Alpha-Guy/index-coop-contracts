@@ -34,6 +34,7 @@ const expect = getWaffleExpect();
 describe("ExchangeIssuance", async () => {
   let owner: Account;
   let user: Account;
+  let externalPositionModule: Account;
   let setV2Setup: SetFixture;
 
   let deployer: DeployHelper;
@@ -46,6 +47,7 @@ describe("ExchangeIssuance", async () => {
     [
       owner,
       user,
+      externalPositionModule,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -300,17 +302,6 @@ describe("ExchangeIssuance", async () => {
           expect(finalAllowances[i].sub(initAllowances[i])).to.eq(MAX_UINT_96);
         }
       });
-
-      context("when the set contains an external position", async () => {
-        beforeEach(async () => {
-
-        });
-
-        it("should revert", async () => {
-          // Verify contract reverts with the corerct error message
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED");
-        });
-      });
     });
 
     describe("#approveSetToken", async () => {
@@ -340,6 +331,32 @@ describe("ExchangeIssuance", async () => {
         for (let i = 0; i < finalAllowances.length; i++) {
           expect(finalAllowances[i].sub(initAllowances[i])).to.eq(MAX_UINT_96);
         }
+      });
+
+      context("when the set contains an external position", async () => {
+        beforeEach(async () => {
+          subjectSetToApprove = await setV2Setup.createSetToken(
+            [setV2Setup.dai.address],
+            [ether(0.5)],
+            [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+          );
+          await setV2Setup.issuanceModule.initialize(subjectSetToApprove.address, ADDRESS_ZERO);
+
+          const controller = setV2Setup.controller;
+          await controller.addModule(externalPositionModule.address);
+          await subjectSetToApprove.addModule(externalPositionModule.address);
+          await subjectSetToApprove.connect(externalPositionModule.wallet).initializeModule();
+
+          await subjectSetToApprove.connect(externalPositionModule.wallet).addExternalPositionModule(
+            dai.address,
+            externalPositionModule.address
+          );
+        });
+
+        it("should revert", async () => {
+          // Verify contract reverts with the corerct error message
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED");
+        });
       });
     });
 
