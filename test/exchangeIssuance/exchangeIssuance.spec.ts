@@ -1199,6 +1199,16 @@ describe("ExchangeIssuance", async () => {
           expect(expectedSetOutput).to.eq(actualSetOutput);
         });
       });
+
+      context("when set contains an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
     });
 
     describe("#getAmountInToIssueExactSet", async () => {
@@ -1275,6 +1285,26 @@ describe("ExchangeIssuance", async () => {
           expect(expectedInputAmount).to.eq(actualInputAmount);
         });
       });
+
+      context("when set contains an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+
+      context("when there is not enough liquidity to issue required amount", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ether(10 ** 10);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
     });
 
     describe("#getAmountOutOnRedeemSet", async () => {
@@ -1349,6 +1379,16 @@ describe("ExchangeIssuance", async () => {
           const actualOutputAmount = await subject();
 
           expect(expectedOutputAmount).to.eq(actualOutputAmount);
+        });
+      });
+
+      context("when set contains an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         });
       });
     });
